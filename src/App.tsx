@@ -1002,6 +1002,22 @@ function UserLearningView() {
     fetchData();
   };
 
+  const resumeModule = async (ut: UserTraining) => {
+    const newProgress = Math.min(ut.progress + 20, 100);
+    const newStatus = newProgress === 100 ? 'completed' : 'ongoing';
+
+    await supabase
+      .from('user_trainings')
+      .update({ 
+        progress: newProgress, 
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', ut.id);
+    
+    fetchData();
+  };
+
   const filtered = userTrainings.filter(ut => filter === 'all' || ut.status === filter);
 
   return (
@@ -1043,7 +1059,14 @@ function UserLearningView() {
                     <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                       <motion.div initial={{width:0}} animate={{width: `${ut.progress}%`}} className="h-full bg-gradient-to-r from-blue-600 to-blue-400 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
                     </div>
-                    <Button variant="secondary" className="w-full py-4 text-xs">Resume Stream</Button>
+                    <Button 
+                      onClick={() => resumeModule(ut)}
+                      variant="secondary" 
+                      className="w-full py-4 text-xs"
+                      disabled={ut.status === 'completed'}
+                    >
+                      {ut.status === 'completed' ? 'Module Secured' : 'Resume Stream'}
+                    </Button>
                   </div>
                 ) : (
                   <Button onClick={() => enroll(m.id)} className="w-full py-4 text-xs">Initialize Module</Button>
@@ -1095,7 +1118,11 @@ function UserCertificateVault() {
           user_id: user?.id,
           file_name: file.name,
           file_url: 'shared_storage_path', // In a real app, upload to storage first
-          extracted_data: analysis,
+          extracted_data: { 
+            ...analysis, 
+            original_base64: base64, 
+            mime_type: file.type 
+          },
           summary: analysis.summary,
           status: analysis.validity_score > 70 ? 'valid' : 'invalid'
         }]);
@@ -1110,6 +1137,38 @@ function UserCertificateVault() {
       alert("AI analysis failed. Please try again.");
       setAnalyzing(false);
       setUploading(false);
+    }
+  };
+
+  const handleRescan = async (cert: Certificate) => {
+    const base64 = cert.extracted_data.original_base64;
+    const mimeType = cert.extracted_data.mime_type || 'application/pdf';
+
+    if (!base64) {
+      alert("Original source data not found for this certificate. Rescan is only available for newly uploaded documents in this environment.");
+      return;
+    }
+
+    setAnalyzing(true);
+    try {
+      const analysis = await analyzeCertificate(base64, mimeType);
+      
+      await supabase.from('certificates').update({
+        extracted_data: { 
+          ...analysis, 
+          original_base64: base64, 
+          mime_type: mimeType 
+        },
+        summary: analysis.summary,
+        status: analysis.validity_score > 70 ? 'valid' : 'invalid'
+      }).eq('id', cert.id);
+
+      fetchCerts();
+    } catch (err) {
+      console.error(err);
+      alert("Rescan failed. Connection to Gemini engine interrupted.");
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -1185,9 +1244,18 @@ function UserCertificateVault() {
                      </span>
                   </div>
                 </div>
-                <Button variant="outline" className="px-8 h-12 text-[10px] uppercase font-black tracking-widest opacity-0 md:group-hover:opacity-100 transition-opacity">
-                   View Resource
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    onClick={() => handleRescan(c)}
+                    variant="secondary" 
+                    className="px-8 h-12 text-[10px] uppercase font-black tracking-widest opacity-0 md:group-hover:opacity-100 transition-opacity whitespace-nowrap"
+                  >
+                     Rescan 0xAuto
+                  </Button>
+                  <Button variant="outline" className="px-8 h-12 text-[10px] uppercase font-black tracking-widest opacity-0 md:group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                     View Resource
+                  </Button>
+                </div>
               </div>
             </Card>
           </motion.div>

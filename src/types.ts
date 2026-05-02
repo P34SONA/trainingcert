@@ -44,6 +44,8 @@ export interface Certificate {
     issue_date?: string;
     issuer?: string;
     validity_score?: number;
+    original_base64?: string;
+    mime_type?: string;
   };
   summary: string;
   status: 'pending' | 'valid' | 'invalid';
