@@ -1,0 +1,6 @@
+{
+  "name": "EduTrack AI",
+  "description": "Training management platform with AI-powered certificate scanning and user progress tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Document Analysis", "User Management", "Training Dashboard"]
+}
