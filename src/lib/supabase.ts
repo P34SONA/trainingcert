@@ -1,12 +1,26 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// @ts-ignore
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-// @ts-ignore
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+let supabaseInstance: SupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase URL or Anon Key is missing. Check your .env file.");
+export function getSupabase(): SupabaseClient {
+  if (supabaseInstance) return supabaseInstance;
+
+  // @ts-ignore
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  // @ts-ignore
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("SUPABASE_CONFIG_MISSING");
+  }
+
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+  return supabaseInstance;
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// For cases where we just need a reference that handles its own errors
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    return (getSupabase() as any)[prop];
+  }
+});

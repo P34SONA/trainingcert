@@ -11,17 +11,26 @@ app.use(express.json({ limit: '10mb' }));
 
 const PORT = 3000;
 
-// Supabase Admin Client
-const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+let supabaseAdminClient: any = null;
+
+function getSupabaseAdmin() {
+  if (!supabaseAdminClient) {
+    const url = process.env.VITE_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!url || !key) {
+      throw new Error("Missing SUPABASE environment variables (VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY).");
     }
+    
+    supabaseAdminClient = createClient(url, key, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
   }
-);
+  return supabaseAdminClient;
+}
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -35,8 +44,9 @@ app.post("/api/admin/create-user", async (req, res) => {
   const { email, password, fullName, role } = req.body;
 
   try {
+    const admin = getSupabaseAdmin();
     // 1. Create auth user
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: authUser, error: authError } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -46,7 +56,7 @@ app.post("/api/admin/create-user", async (req, res) => {
     if (authError) throw authError;
 
     // 2. Insert into profiles table
-    const { error: profileError } = await supabaseAdmin
+    const { error: profileError } = await admin
       .from('profiles')
       .upsert({
         id: authUser.user.id,

@@ -104,31 +104,40 @@ export default function App() {
   const [user, setUser] = React.useState<any>(null);
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [configError, setConfigError] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<'dashboard' | 'learning' | 'certificates' | 'users'>('dashboard');
 
   React.useEffect(() => {
-    // Check initial auth state
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      } else {
+    try {
+      // Check initial auth state
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setUser(session.user);
+          fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      }).catch(err => {
+        if (err.message === 'SUPABASE_CONFIG_MISSING') setConfigError(true);
         setLoading(false);
-      }
-    });
+      });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setUser(session.user);
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      }
-    });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session) {
+          setUser(session.user);
+          fetchProfile(session.user.id);
+        } else {
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+        }
+      });
 
-    return () => subscription.unsubscribe();
+      return () => subscription.unsubscribe();
+    } catch (err: any) {
+      if (err.message === 'SUPABASE_CONFIG_MISSING') setConfigError(true);
+      setLoading(false);
+    }
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -151,6 +160,43 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  if (configError) {
+    return (
+      <div className="min-h-screen bg-[#030712] flex items-center justify-center p-6">
+        <Card className="max-w-2xl w-full p-12 border-white/10 bg-white/[0.02] backdrop-blur-3xl space-y-8">
+          <div className="flex items-center gap-4 text-blue-400">
+            <ShieldCheck className="w-12 h-12" />
+            <h1 className="text-3xl font-black italic uppercase tracking-tighter text-white">System Configuration Required</h1>
+          </div>
+          
+          <div className="space-y-6 text-slate-400 leading-relaxed">
+            <p className="text-lg italic">
+              The <span className="text-white font-bold">LUMINA_CORE</span> environment is currently uninitialized. Connect your Supabase project to activate the learning architecture.
+            </p>
+            
+            <div className="bg-white/5 rounded-2xl p-8 border border-white/10 space-y-4">
+              <h3 className="text-xs font-bold text-white uppercase tracking-widest">Protocol Instructions:</h3>
+              <ol className="list-decimal list-inside space-y-3 text-sm font-mono">
+                <li>Open the <span className="text-blue-400">Settings &gt; Secrets</span> menu in AI Studio.</li>
+                <li>Add <code className="text-white bg-white/10 px-2 py-0.5 rounded">VITE_SUPABASE_URL</code> from your Supabase project.</li>
+                <li>Add <code className="text-white bg-white/10 px-2 py-0.5 rounded">VITE_SUPABASE_ANON_KEY</code> from your project settings.</li>
+                <li>Add <code className="text-white bg-white/10 px-2 py-0.5 rounded">SUPABASE_SERVICE_ROLE_KEY</code> for backend authentication.</li>
+                <li>Reload the application to initialize the stream.</li>
+              </ol>
+            </div>
+          </div>
+
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="w-full py-5 text-sm tracking-widest bg-blue-600 hover:bg-blue-500 shadow-2xl shadow-blue-600/30"
+          >
+            RE-INITIALIZE SYSTEM
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
